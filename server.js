@@ -20,7 +20,7 @@ const SEND_RATE = 30;          // envíos de estado por segundo
 const ARENA_START = 380;       // radio inicial de la arena
 const ARENA_MIN = 110;         // radio mínimo
 const SHRINK_TIME = 45;        // segundos hasta llegar al radio mínimo
-const R = 22;                  // radio de cada jugador
+const R = 22;                  // radio normal de cada jugador
 const ACCEL = 1000;            // aceleración al moverse
 const FRICTION = 3.3;          // rozamiento (más alto = frena antes)
 const DASH_SPEED = 780;        // velocidad del embiste
@@ -31,8 +31,24 @@ const COUNTDOWN = 3;
 const ROUND_END_TIME = 3.5;
 const MAX_PLAYERS = 12;
 
-const COLORS = ['#ff5d5d', '#4dabff', '#5ee07a', '#ffd23f', '#c77dff', '#ff8c42',
-  '#2ee6d6', '#ff6fb5', '#a3e635', '#f4f4f4', '#8b9cff', '#ffb4a2'];
+// Poderes: aparecen en la arena y duran unos segundos
+const POWER_MAX_ON_MAP = 3;    // máximo de poderes a la vez en la arena
+const POWER_SPAWN_MIN = 2.5;   // segundos mínimos entre apariciones
+const POWER_SPAWN_MAX = 5;     // segundos máximos entre apariciones
+const POWER_LIFETIME = 10;     // si nadie lo coge, desaparece
+const BOMB_RADIUS = 280;
+const POWERS = {
+  gigante:  { dur: 6, label: 'GIGANTE',  icon: '🍄' }, // enorme y pesado
+  turbo:    { dur: 5, label: 'TURBO',    icon: '⚡' }, // más rápido, embiste sin parar
+  fantasma: { dur: 6, label: 'FANTASMA', icon: '👻' }, // los demás no te ven
+  muro:     { dur: 5, label: 'MURO',     icon: '🧱' }, // nadie te puede mover
+  mareo:    { dur: 4, label: 'MAREO',    icon: '😵' }, // los DEMÁS tienen controles invertidos
+  hielo:    { dur: 5, label: 'HIELO',    icon: '🧊' }, // los DEMÁS resbalan
+  bomba:    { dur: 0, label: 'BOMBA',    icon: '💣' }, // onda expansiva instantánea
+};
+const POWER_TYPES = Object.keys(POWERS);
+
+const CHARACTERS = ['bruto', 'gotita', 'pinchos', 'chulo', 'diablillo', 'michi', 'robi', 'reina'];
 
 // ---------- Salas ----------
 const rooms = new Map();
@@ -40,21 +56,21 @@ const rooms = new Map();
 function getRoom(id) {
   if (!rooms.has(id)) {
     rooms.set(id, {
-      id, players: new Map(), phase: 'lobby', timer: 0, elapsed: 0,
-      arena: ARENA_START, winner: null, events: [],
+      id, players: new Map(), phase: 'lobby', timer: 0, elapsed: 0, elapsedTotal: 0,
+      arena: ARENA_START, winner: null, events: [], fx: [],
+      powerups: [], powerTimer: 2, nextPowerId: 1,
     });
   }
   return rooms.get(id);
 }
 
-function freeColor(room) {
-  const used = new Set([...room.players.values()].map(p => p.color));
-  return COLORS.find(c => !used.has(c)) || COLORS[Math.floor(Math.random() * COLORS.length)];
-}
-
 function placeRandom(p, radius) {
   const a = Math.random() * Math.PI * 2, d = Math.random() * radius * 0.6;
   p.x = Math.cos(a) * d; p.y = Math.sin(a) * d; p.vx = p.vy = 0;
+}
+
+function resetPlayerRound(p) {
+  p.vx = p.vy = 0; p.alive = true; p.dashT = 0; p.dashCd = 0; p.lastHit = null; p.effects = {};
 }
 
 function startCountdown(room) {
@@ -63,12 +79,14 @@ function startCountdown(room) {
   room.arena = ARENA_START;
   room.elapsed = 0;
   room.winner = null;
+  room.powerups = [];
+  room.powerTimer = 2;
   const list = [...room.players.values()];
   list.forEach((p, i) => {
     const a = (i / list.length) * Math.PI * 2;
     p.x = Math.cos(a) * ARENA_START * 0.6;
     p.y = Math.sin(a) * ARENA_START * 0.6;
-    p.vx = p.vy = 0; p.alive = true; p.dashT = 0; p.dashCd = 0; p.lastHit = null;
+    resetPlayerRound(p);
   });
 }
 
@@ -76,15 +94,66 @@ function addEvent(room, text) {
   room.events.push({ text, id: Math.random().toString(36).slice(2) });
 }
 
+// ---------- Poderes ----------
+function updatePowerups(room, dt) {
+  room.powerTimer -= dt;
+  if (room.powerTimer <= 0) {
+    room.powerTimer = POWER_SPAWN_MIN + Math.random() * (POWER_SPAWN_MAX - POWER_SPAWN_MIN);
+    if (room.powerups.length < POWER_MAX_ON_MAP) {
+      const a = Math.random() * Math.PI * 2, d = Math.sqrt(Math.random()) * room.arena * 0.75;
+      room.powerups.push({
+        id: room.nextPowerId++, type: POWER_TYPES[Math.floor(Math.random() * POWER_TYPES.length)],
+        x: Math.cos(a) * d, y: Math.sin(a) * d, age: 0,
+      });
+    }
+  }
+  // Caducan o se caen si la arena se encoge
+  room.powerups = room.powerups.filter(pu => {
+    pu.age += dt;
+    return pu.age < POWER_LIFETIME && Math.hypot(pu.x, pu.y) < room.arena - 10;
+  });
+}
+
+function applyPower(room, p, type) {
+  const def = POWERS[type];
+  const others = [...room.players.values()].filter(q => q.alive && q !== p);
+  if (type === 'bomba') {
+    for (const q of others) {
+      const dx = q.x - p.x, dy = q.y - p.y, d = Math.hypot(dx, dy) || 1;
+      if (d > BOMB_RADIUS) continue;
+      const imp = 500 + 700 * (1 - d / BOMB_RADIUS);
+      q.vx += dx / d * imp; q.vy += dy / d * imp;
+      q.lastHit = { by: p.id, at: room.elapsedTotal };
+    }
+    room.fx.push({ type: 'shock', x: Math.round(p.x), y: Math.round(p.y), r: BOMB_RADIUS });
+  } else if (type === 'mareo') {
+    for (const q of others) q.effects.mareado = def.dur;
+  } else if (type === 'hielo') {
+    for (const q of others) q.effects.resbalando = def.dur;
+  } else {
+    p.effects[type] = def.dur;
+  }
+  addEvent(room, `${p.name} cogió ${def.icon} ${def.label}`);
+}
+
 // ---------- Física ----------
+function massOf(p) {
+  return (p.effects.muro ? 40 : 1) * (p.effects.gigante ? 2.5 : 1) * (p.dashT > 0 ? 3 : 1);
+}
+
 function stepPhysics(room, dt, canMove) {
   const alive = [...room.players.values()].filter(p => p.alive);
 
   for (const p of alive) {
+    const fx = p.effects;
+    for (const k in fx) { fx[k] -= dt; if (fx[k] <= 0) delete fx[k]; }
+    p.r = R * (fx.gigante ? 1.6 : 1);
+
     p.dashCd = Math.max(0, p.dashCd - dt);
     p.dashT = Math.max(0, p.dashT - dt);
     let ix = (p.input.right ? 1 : 0) - (p.input.left ? 1 : 0);
     let iy = (p.input.down ? 1 : 0) - (p.input.up ? 1 : 0);
+    if (fx.mareado) { ix = -ix; iy = -iy; }
     const len = Math.hypot(ix, iy);
     if (len > 0) { ix /= len; iy /= len; }
 
@@ -95,16 +164,31 @@ function stepPhysics(room, dt, canMove) {
           const s = Math.hypot(p.vx, p.vy);
           if (s > 1) { dx = p.vx / s; dy = p.vy / s; } else { dx = 1; dy = 0; }
         }
-        p.vx = dx * DASH_SPEED; p.vy = dy * DASH_SPEED;
-        p.dashT = DASH_TIME; p.dashCd = DASH_COOLDOWN;
+        const speed = DASH_SPEED * (fx.turbo ? 1.2 : 1);
+        p.vx = dx * speed; p.vy = dy * speed;
+        p.dashT = DASH_TIME;
+        p.dashCdMax = fx.turbo ? 0.35 : DASH_COOLDOWN;
+        p.dashCd = p.dashCdMax;
       }
-      p.vx += ix * ACCEL * dt; p.vy += iy * ACCEL * dt;
+      const acc = ACCEL * (fx.turbo ? 1.7 : 1);
+      p.vx += ix * acc * dt; p.vy += iy * acc * dt;
     }
     p.wantDash = false;
 
-    const f = Math.max(0, 1 - FRICTION * dt);
+    const f = Math.max(0, 1 - FRICTION * (fx.resbalando ? 0.2 : 1) * dt);
     p.vx *= f; p.vy *= f;
     p.x += p.vx * dt; p.y += p.vy * dt;
+
+    // Coger poderes
+    if (canMove) {
+      for (let i = room.powerups.length - 1; i >= 0; i--) {
+        const pu = room.powerups[i];
+        if (Math.hypot(pu.x - p.x, pu.y - p.y) < p.r + 16) {
+          room.powerups.splice(i, 1);
+          applyPower(room, p, pu.type);
+        }
+      }
+    }
   }
 
   // Choques entre jugadores
@@ -112,16 +196,16 @@ function stepPhysics(room, dt, canMove) {
     for (let j = i + 1; j < alive.length; j++) {
       const a = alive[i], b = alive[j];
       const dx = b.x - a.x, dy = b.y - a.y;
-      const d = Math.hypot(dx, dy);
-      if (d === 0 || d >= R * 2) continue;
+      const d = Math.hypot(dx, dy), minD = a.r + b.r;
+      if (d === 0 || d >= minD) continue;
       const nx = dx / d, ny = dy / d;
-      const overlap = R * 2 - d;
-      a.x -= nx * overlap / 2; a.y -= ny * overlap / 2;
-      b.x += nx * overlap / 2; b.y += ny * overlap / 2;
+      const ma = massOf(a), mb = massOf(b);
+      const overlap = minD - d, share = mb / (ma + mb);
+      a.x -= nx * overlap * share; a.y -= ny * overlap * share;
+      b.x += nx * overlap * (1 - share); b.y += ny * overlap * (1 - share);
 
       const rv = (b.vx - a.vx) * nx + (b.vy - a.vy) * ny;
       if (rv >= 0) continue;
-      const ma = a.dashT > 0 ? 3 : 1, mb = b.dashT > 0 ? 3 : 1;
       const jImp = -(1 + BOUNCE) * rv / (1 / ma + 1 / mb);
       a.vx -= jImp * nx / ma; a.vy -= jImp * ny / ma;
       b.vx += jImp * nx / mb; b.vy += jImp * ny / mb;
@@ -129,7 +213,6 @@ function stepPhysics(room, dt, canMove) {
       const now = room.elapsedTotal;
       a.lastHit = { by: b.id, at: now };
       b.lastHit = { by: a.id, at: now };
-      if (a.dashT > 0 || b.dashT > 0) room.bumps = (room.bumps || 0) + 1;
     }
   }
 
@@ -138,6 +221,7 @@ function stepPhysics(room, dt, canMove) {
     if (Math.hypot(p.x, p.y) > room.arena) {
       p.alive = false;
       p.deadAt = room.elapsedTotal;
+      p.effects = {};
       const hit = p.lastHit && room.elapsedTotal - p.lastHit.at < 3 && room.players.get(p.lastHit.by);
       if (hit) { hit.pushes = (hit.pushes || 0) + 1; addEvent(room, `${hit.name} empujó a ${p.name} 💥`); }
       else addEvent(room, `${p.name} se cayó solito 🫠`);
@@ -147,14 +231,15 @@ function stepPhysics(room, dt, canMove) {
 
 // ---------- Bucle principal ----------
 function updateRoom(room, dt) {
-  room.elapsedTotal = (room.elapsedTotal || 0) + dt;
+  room.elapsedTotal += dt;
   const count = room.players.size;
 
   if (room.phase === 'lobby') {
-    // Modo práctica: si estás solo, puedes moverte y reapareces al caer
+    // Modo práctica: si estás solo, puedes moverte, probar poderes y reapareces al caer
+    updatePowerups(room, dt);
     stepPhysics(room, dt, true);
     for (const p of room.players.values()) {
-      if (!p.alive && room.elapsedTotal - p.deadAt > 1) { p.alive = true; placeRandom(p, ARENA_START); }
+      if (!p.alive && room.elapsedTotal - p.deadAt > 1) { resetPlayerRound(p); placeRandom(p, ARENA_START); }
     }
     if (count >= 2) startCountdown(room);
   } else if (room.phase === 'countdown') {
@@ -165,11 +250,13 @@ function updateRoom(room, dt) {
   } else if (room.phase === 'playing') {
     room.elapsed += dt;
     room.arena = Math.max(ARENA_MIN, ARENA_START - (ARENA_START - ARENA_MIN) * (room.elapsed / SHRINK_TIME));
+    updatePowerups(room, dt);
     stepPhysics(room, dt, true);
     const alive = [...room.players.values()].filter(p => p.alive);
     if (alive.length <= 1) {
       room.phase = 'roundEnd';
       room.timer = ROUND_END_TIME;
+      room.powerups = [];
       if (alive.length === 1) {
         alive[0].score++;
         room.winner = alive[0].name;
@@ -183,7 +270,7 @@ function updateRoom(room, dt) {
       if (count >= 2) startCountdown(room);
       else {
         room.phase = 'lobby'; room.arena = ARENA_START;
-        for (const p of room.players.values()) { p.alive = true; placeRandom(p, ARENA_START); }
+        for (const p of room.players.values()) { resetPlayerRound(p); placeRandom(p, ARENA_START); }
       }
     }
   }
@@ -196,14 +283,16 @@ function snapshot(room) {
     arena: Math.round(room.arena),
     arenaStart: ARENA_START,
     winner: room.winner,
-    radius: R,
-    dashCooldown: DASH_COOLDOWN,
     events: room.events.splice(0),
+    fx: room.fx.splice(0),
+    powerups: room.powerups.map(pu => ({ id: pu.id, type: pu.type, x: Math.round(pu.x), y: Math.round(pu.y), age: pu.age })),
+    powers: POWERS,
     players: [...room.players.values()].map(p => ({
-      id: p.id, name: p.name, color: p.color, alive: p.alive,
-      x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10,
+      id: p.id, name: p.name, char: p.char, alive: p.alive,
+      x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10, r: p.r,
       score: p.score, pushes: p.pushes || 0,
-      dashing: p.dashT > 0, cd: Math.round(p.dashCd * 100) / 100,
+      dashing: p.dashT > 0, cd: Math.round(p.dashCd * 100) / 100, cdMax: p.dashCdMax,
+      fx: Object.fromEntries(Object.entries(p.effects).map(([k, v]) => [k, Math.round(v * 10) / 10])),
     })),
   };
 }
@@ -224,18 +313,19 @@ setInterval(() => {
 io.on('connection', socket => {
   let room = null;
 
-  socket.on('join', ({ name, roomId }) => {
+  socket.on('join', ({ name, roomId, char }) => {
     if (room) return;
     roomId = String(roomId || 'principal').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 20) || 'principal';
     name = String(name || 'Anónimo').trim().slice(0, 14) || 'Anónimo';
+    if (!CHARACTERS.includes(char)) char = CHARACTERS[Math.floor(Math.random() * CHARACTERS.length)];
     const r = getRoom(roomId);
     if (r.players.size >= MAX_PLAYERS) return socket.emit('full');
     room = r;
     const inRound = room.phase === 'playing' || room.phase === 'countdown';
     const p = {
-      id: socket.id, name, color: freeColor(room), x: 0, y: 0, vx: 0, vy: 0,
-      input: {}, wantDash: false, alive: !inRound, deadAt: 0,
-      score: 0, pushes: 0, dashT: 0, dashCd: 0, lastHit: null,
+      id: socket.id, name, char, x: 0, y: 0, vx: 0, vy: 0, r: R,
+      input: {}, wantDash: false, alive: !inRound, deadAt: 0, effects: {},
+      score: 0, pushes: 0, dashT: 0, dashCd: 0, dashCdMax: DASH_COOLDOWN, lastHit: null,
     };
     if (!inRound) placeRandom(p, room.arena);
     room.players.set(socket.id, p);
