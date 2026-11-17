@@ -50,6 +50,10 @@ const POWER_TYPES = Object.keys(POWERS);
 
 const CHARACTERS = ['bruto', 'gotita', 'pinchos', 'chulo', 'diablillo', 'michi', 'robi', 'reina'];
 
+// Bots
+const MAX_BOTS_PER_PLAYER = 7;
+const BOT_NAMES = ['Paco', 'Lola', 'Chispa', 'Rufus', 'Nena', 'Kiko', 'Mora', 'Pipo', 'Luna', 'Tito', 'Coco', 'Rita'];
+
 // ---------- Salas ----------
 const rooms = new Map();
 
@@ -134,6 +138,84 @@ function applyPower(room, p, type) {
     p.effects[type] = def.dur;
   }
   addEvent(room, `${p.name} cogió ${def.icon} ${def.label}`);
+}
+
+// ---------- Jugadores y bots ----------
+function makePlayer(room, id, name, char) {
+  const inRound = room.phase === 'playing' || room.phase === 'countdown';
+  const p = {
+    id, name, char, x: 0, y: 0, vx: 0, vy: 0, r: R,
+    input: {}, wantDash: false, alive: !inRound, deadAt: 0, effects: {},
+    score: 0, pushes: 0, dashT: 0, dashCd: 0, dashCdMax: DASH_COOLDOWN, lastHit: null,
+  };
+  if (!inRound) placeRandom(p, room.arena);
+  room.players.set(id, p);
+  return p;
+}
+
+function addBots(room, ownerId, n) {
+  const used = new Set([...room.players.values()].map(p => p.name));
+  let added = 0;
+  for (let i = 0; i < n && room.players.size < MAX_PLAYERS; i++) {
+    const free = BOT_NAMES.filter(b => !used.has(`Bot ${b}`));
+    const name = `Bot ${free.length ? free[Math.floor(Math.random() * free.length)] : added + 1}`;
+    used.add(name);
+    const char = CHARACTERS[Math.floor(Math.random() * CHARACTERS.length)];
+    const bot = makePlayer(room, `bot-${Math.random().toString(36).slice(2, 9)}`, name, char);
+    bot.isBot = true; bot.owner = ownerId;
+    bot.ai = { think: Math.random() * 0.3, wander: null, aggression: 0.35 + Math.random() * 0.4 };
+    added++;
+  }
+  if (added) addEvent(room, `🤖 ${added} bot${added > 1 ? 's' : ''} se ${added > 1 ? 'unieron' : 'unió'}`);
+}
+
+// Cerebro de los bots: decide hacia dónde ir unas 5 veces por segundo
+function updateBot(room, p, dt) {
+  const ai = p.ai;
+  ai.think -= dt;
+  if (ai.think > 0) return;
+  ai.think = 0.12 + Math.random() * 0.2; // pequeño "tiempo de reacción"
+  if (!p.alive || room.phase === 'countdown') { p.input = {}; return; }
+  if (room.phase === 'roundEnd') { // celebrar en el centro, sin suicidarse
+    const d = Math.hypot(p.x, p.y);
+    p.input = d > 40 ? { left: p.x > 20, right: p.x < -20, up: p.y > 20, down: p.y < -20 } : {};
+    return;
+  }
+
+  const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+  const fromCenter = Math.hypot(p.x, p.y);
+  // Los fantasmas son invisibles también para los bots
+  const enemies = [...room.players.values()].filter(q => q !== p && q.alive && !q.effects.fantasma);
+  const enemy = enemies.sort((a, b) => dist(p, a) - dist(p, b))[0];
+  const pu = room.powerups.slice().sort((a, b) => dist(p, a) - dist(p, b))[0];
+
+  let tx = 0, ty = 0, dashAt = null;
+  if (fromCenter > room.arena - 70) {
+    tx = 0; ty = 0;                                   // ¡peligro! volver al centro
+  } else if (pu && dist(p, pu) < 230) {
+    tx = pu.x; ty = pu.y;                             // ir a por el poder
+  } else if (enemy) {
+    // Colocarse "detrás" del enemigo (lado del centro) para empujarlo hacia fuera
+    const ed = Math.hypot(enemy.x, enemy.y) || 1;
+    tx = enemy.x - enemy.x / ed * 30; ty = enemy.y - enemy.y / ed * 30;
+    if (dist(p, enemy) < 130 && p.dashCd <= 0 && Math.random() < ai.aggression) dashAt = enemy;
+  } else {
+    if (!ai.wander || dist(p, ai.wander) < 30) {
+      const a = Math.random() * Math.PI * 2, d = Math.random() * room.arena * 0.5;
+      ai.wander = { x: Math.cos(a) * d, y: Math.sin(a) * d };
+    }
+    tx = ai.wander.x; ty = ai.wander.y;
+  }
+
+  if (dashAt) {
+    const dx = dashAt.x - p.x, dy = dashAt.y - p.y, d = Math.hypot(dx, dy) || 1;
+    // No embestir si eso nos tira fuera de la arena
+    const endX = p.x + dx / d * 140, endY = p.y + dy / d * 140;
+    if (Math.hypot(endX, endY) < room.arena - 25) { tx = dashAt.x; ty = dashAt.y; p.wantDash = true; }
+  }
+
+  const dx = tx - p.x, dy = ty - p.y, dead = 10;
+  p.input = { left: dx < -dead, right: dx > dead, up: dy < -dead, down: dy > dead };
 }
 
 // ---------- Física ----------
@@ -233,6 +315,7 @@ function stepPhysics(room, dt, canMove) {
 function updateRoom(room, dt) {
   room.elapsedTotal += dt;
   const count = room.players.size;
+  for (const p of room.players.values()) if (p.isBot) updateBot(room, p, dt);
 
   if (room.phase === 'lobby') {
     // Modo práctica: si estás solo, puedes moverte, probar poderes y reapareces al caer
@@ -288,7 +371,7 @@ function snapshot(room) {
     powerups: room.powerups.map(pu => ({ id: pu.id, type: pu.type, x: Math.round(pu.x), y: Math.round(pu.y), age: pu.age })),
     powers: POWERS,
     players: [...room.players.values()].map(p => ({
-      id: p.id, name: p.name, char: p.char, alive: p.alive,
+      id: p.id, name: p.name, char: p.char, alive: p.alive, bot: !!p.isBot,
       x: Math.round(p.x * 10) / 10, y: Math.round(p.y * 10) / 10, r: p.r,
       score: p.score, pushes: p.pushes || 0,
       dashing: p.dashT > 0, cd: Math.round(p.dashCd * 100) / 100, cdMax: p.dashCdMax,
@@ -313,25 +396,20 @@ setInterval(() => {
 io.on('connection', socket => {
   let room = null;
 
-  socket.on('join', ({ name, roomId, char }) => {
+  socket.on('join', ({ name, roomId, char, bots }) => {
     if (room) return;
     roomId = String(roomId || 'principal').toLowerCase().replace(/[^a-z0-9-]/g, '').slice(0, 20) || 'principal';
     name = String(name || 'Anónimo').trim().slice(0, 14) || 'Anónimo';
     if (!CHARACTERS.includes(char)) char = CHARACTERS[Math.floor(Math.random() * CHARACTERS.length)];
+    bots = Math.max(0, Math.min(MAX_BOTS_PER_PLAYER, Math.floor(Number(bots) || 0)));
     const r = getRoom(roomId);
     if (r.players.size >= MAX_PLAYERS) return socket.emit('full');
     room = r;
-    const inRound = room.phase === 'playing' || room.phase === 'countdown';
-    const p = {
-      id: socket.id, name, char, x: 0, y: 0, vx: 0, vy: 0, r: R,
-      input: {}, wantDash: false, alive: !inRound, deadAt: 0, effects: {},
-      score: 0, pushes: 0, dashT: 0, dashCd: 0, dashCdMax: DASH_COOLDOWN, lastHit: null,
-    };
-    if (!inRound) placeRandom(p, room.arena);
-    room.players.set(socket.id, p);
+    makePlayer(room, socket.id, name, char);
     socket.join(room.id);
     socket.emit('joined', { id: socket.id, roomId: room.id });
     addEvent(room, `${name} entró a la sala 👋`);
+    if (bots) addBots(room, socket.id, bots);
   });
 
   socket.on('input', input => {
@@ -349,7 +427,9 @@ io.on('connection', socket => {
     const p = room.players.get(socket.id);
     room.players.delete(socket.id);
     if (p) addEvent(room, `${p.name} salió`);
-    if (room.players.size === 0) rooms.delete(room.id);
+    // Sus bots se van con él
+    for (const [id, q] of room.players) if (q.isBot && q.owner === socket.id) room.players.delete(id);
+    if (![...room.players.values()].some(q => !q.isBot)) rooms.delete(room.id);
   });
 });
 

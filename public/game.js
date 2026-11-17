@@ -51,6 +51,30 @@ function drawCharButtons(now) {
   }
 }
 
+// ---------- Bots ----------
+const BOTS_MAX = 7;
+const botsOnEl = document.getElementById('botsOn');
+const botsStepperEl = document.getElementById('botsStepper');
+const botsCountEl = document.getElementById('botsCount');
+const botsMinusEl = document.getElementById('botsMinus');
+const botsPlusEl = document.getElementById('botsPlus');
+let botsCount = 3;
+try {
+  const saved = JSON.parse(localStorage.getItem('empujones-bots') || 'null');
+  if (saved) { botsOnEl.checked = !!saved.on; botsCount = Math.min(BOTS_MAX, Math.max(1, saved.n | 0)) || 3; }
+} catch {}
+function renderBots() {
+  botsStepperEl.hidden = !botsOnEl.checked;
+  botsCountEl.textContent = botsCount;
+  botsMinusEl.disabled = botsCount <= 1;
+  botsPlusEl.disabled = botsCount >= BOTS_MAX;
+  try { localStorage.setItem('empujones-bots', JSON.stringify({ on: botsOnEl.checked, n: botsCount })); } catch {}
+}
+botsOnEl.onchange = renderBots;
+botsMinusEl.onclick = () => { botsCount = Math.max(1, botsCount - 1); renderBots(); };
+botsPlusEl.onclick = () => { botsCount = Math.min(BOTS_MAX, botsCount + 1); renderBots(); };
+renderBots();
+
 // ---------- Unirse ----------
 const params = new URLSearchParams(location.search);
 roomEl.value = params.get('sala') || '';
@@ -60,7 +84,8 @@ nameEl.focus();
 function join() {
   const name = nameEl.value.trim() || 'Anónimo';
   try { localStorage.setItem('empujones-nombre', name); } catch {}
-  socket.emit('join', { name, roomId: roomEl.value.trim() || 'principal', char: myChar });
+  socket.emit('join', { name, roomId: roomEl.value.trim() || 'principal', char: myChar,
+    bots: botsOnEl.checked ? botsCount : 0 });
 }
 document.getElementById('play').onclick = join;
 [nameEl, roomEl].forEach(el => el.addEventListener('keydown', e => { if (e.key === 'Enter') join(); }));
