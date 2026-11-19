@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>moliva.games</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Lilita+One&family=Racing+Sans+One&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Lilita+One&family=Racing+Sans+One&family=Titan+One&display=swap" rel="stylesheet">
   <script>
     // Enlaces antiguos de Empujones (/?sala=...) siguen funcionando
     if (new URLSearchParams(location.search).has('sala')) location.replace('/empujones/' + location.search);
@@ -46,6 +46,10 @@
     .g-karts { background: #c8102e; color: #fff; }
     .g-karts h2 { font-family: 'Racing Sans One', sans-serif; font-style: italic; text-shadow: 3px 3px 0 #000; }
     .g-karts .meta span { background: #0004; }
+    .game:nth-child(3) { transform: rotate(-.8deg); }
+    .g-patata { background: #fff1dc; color: #2a160b; }
+    .g-patata h2 { font-family: 'Titan One', sans-serif; color: #d4380d; text-shadow: 3px 3px 0 #2a160b; }
+    .g-patata .meta span { background: #2a160b14; }
     .soon { border: 4px dashed #ffffff66; border-radius: 26px; display: grid; place-items: center; min-height: 200px;
       color: var(--soft); font-weight: 700; text-align: center; padding: 20px; transform: rotate(-.8deg); }
     footer { margin-top: 44px; text-align: center; color: var(--soft); font-size: 14px; }
@@ -79,6 +83,15 @@
           <div class="meta"><span>👥 1–10 pilotos</span><span>🤖 Bots</span><span>🏁 3 circuitos</span><span>🎯 6 poderes</span></div>
         </div>
       </a>
+      <a class="game g-patata" href="/patata/">
+        <canvas id="pv-patata" aria-hidden="true"></canvas>
+        <span class="play">Jugar →</span>
+        <div class="info">
+          <h2>Patata Caliente</h2>
+          <p>Contesta a la pregunta antes de que te explote la patata. Sin repetir, y cuanto más rara la respuesta, mejor.</p>
+          <div class="meta"><span>👥 2–12 jugadores</span><span>🤖 Bots</span><span>🧠 +130 preguntas</span><span>📱 Móvil</span></div>
+        </div>
+      </a>
     </section>
 
     <footer>Más juegos próximamente · moliva.games</footer>
@@ -105,7 +118,8 @@
       addEventListener('resize', fit); fit();
       return { cv, c };
     }
-    const E = setup('pv-empujones'), K = setup('pv-karts');
+    const E = setup('pv-empujones'), K = setup('pv-karts'), Pt = setup('pv-patata');
+    const faces = ['🍅', '🧅', '🥕', '🍆', '🥑', '🌽'];
     const balls = ['#ff5d5d', '#4dabff', '#5ee07a', '#ffd23f', '#c77dff', '#ff8c42'].map((col, i) => ({
       col, a: i / 6 * Math.PI * 2, r: 40 + Math.random() * 30, s: (Math.random() < .5 ? 1 : -1) * (0.6 + Math.random() * 0.8) }));
     const kartCols = ['#f2b705', '#e3262f', '#2f6fdf', '#5ac035', '#b13bff'];
@@ -151,6 +165,29 @@
           c.fillStyle = col; c.fillRect(-9, -5, 18, 10); c.fillStyle = '#000'; c.fillRect(-7, -7, 4, 3); c.fillRect(-7, 4, 4, 3); c.fillRect(4, -7, 4, 3); c.fillRect(4, 4, 4, 3);
           c.restore();
         });
+      }
+      // Patata: la patata salta de cara en cara y a veces explota
+      { const { cv, c } = Pt, w = cv.clientWidth, h = cv.clientHeight;
+        c.fillStyle = '#ffe2bd'; c.fillRect(0, 0, w, h);
+        c.fillStyle = '#f6cf9c'; for (let x = 11; x < w; x += 22) for (let y = 11; y < h; y += 22) { c.beginPath(); c.arc(x, y, 1.6, 0, 7); c.fill(); }
+        const cx = w / 2, cy = h / 2, rx = Math.min(w * 0.38, 150), ry = h * 0.34, n = faces.length;
+        const pos = i => { const a = -Math.PI / 2 + i / n * Math.PI * 2; return [cx + Math.cos(a) * rx, cy + Math.sin(a) * ry]; };
+        const step = reduce ? 0 : t / 0.9, i0 = Math.floor(step) % n, f = step % 1;
+        const exploding = !reduce && (Math.floor(step) % 11 === 10);
+        c.textAlign = 'center'; c.textBaseline = 'middle'; c.font = '30px serif'; c.fillStyle = '#fff';
+        faces.forEach((e, i) => { const [x, y] = pos(i);
+          c.beginPath(); c.arc(x, y, 22, 0, 7); c.fillStyle = i === i0 ? '#ffb000' : '#fffaf2'; c.fill(); c.lineWidth = 3; c.strokeStyle = '#2a160b'; c.stroke();
+          c.fillStyle = '#fff'; c.fillText(e, x, y + 1); });
+        const [x0, y0] = pos(i0), [x1, y1] = pos((i0 + 1) % n);
+        const k = exploding ? 0 : Math.min(1, Math.max(0, (f - 0.55) / 0.45));
+        const px = cx + ((x0 + (x1 - x0) * k) - cx) * 0.45, py = cy + ((y0 + (y1 - y0) * k) - cy) * 0.45 - Math.sin(k * Math.PI) * 18;
+        if (exploding && f > 0.6) {
+          c.fillStyle = '#ff7a1a'; c.beginPath(); c.arc(cx, cy, 30 + (f - 0.6) * 160, 0, 7); c.globalAlpha = 1 - (f - 0.6) / 0.4; c.fill(); c.globalAlpha = 1;
+          c.font = '26px "Titan One", sans-serif'; c.fillStyle = '#2a160b'; c.fillText('¡BOOM!', cx, cy);
+        } else {
+          const j = exploding ? f * 5 : 0;
+          c.font = '46px serif'; c.fillStyle = '#fff'; c.fillText('🥔', px + (Math.random() - .5) * j, py + (Math.random() - .5) * j);
+        }
       }
       requestAnimationFrame(frame);
     }

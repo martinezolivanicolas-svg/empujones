@@ -16,6 +16,7 @@ app.use('/vendor/three', express.static(path.join(__dirname, 'node_modules/three
 
 // Segundo juego: KARTS (en /karts/)
 require('./karts-server')(io);
+require('./patata-server')(io);
 
 // ---------- Ajustes del juego (¡juega con estos números!) ----------
 const PORT = process.env.PORT || 3000;
