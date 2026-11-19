@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>Empujones</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@600;800&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg: #14121f; --panel: #221e35; --ink: #f6f2ff; --muted: #a49cc4; --accent: #ffd23f; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
+      font-family: 'Nunito', system-ui, sans-serif; overflow: hidden; touch-action: none; }
+    canvas { display: block; width: 100vw; height: 100vh; }
+    #join { position: fixed; inset: 0; display: grid; place-items: center; padding: 16px;
+      background: radial-gradient(circle at 50% 30%, #2d2650, var(--bg) 70%); z-index: 10; }
+    .card { width: min(380px, 100%); background: var(--panel); border-radius: 22px; padding: 28px;
+      box-shadow: 0 20px 60px #0008; text-align: center; }
+    h1 { font-family: 'Lilita One', sans-serif; font-size: 52px; margin: 0; letter-spacing: 1px;
+      color: var(--accent); text-shadow: 4px 4px 0 #ff5d5d; transform: rotate(-3deg); }
+    .sub { color: var(--muted); margin: 10px 0 22px; }
+    label { display: block; text-align: left; font-size: 13px; color: var(--muted); margin: 12px 0 6px; }
+    input { width: 100%; padding: 13px 14px; border-radius: 12px; border: 2px solid #3a3358;
+      background: #17142a; color: var(--ink); font: inherit; font-size: 17px; outline: none; }
+    input:focus { border-color: var(--accent); }
+    button { margin-top: 20px; width: 100%; padding: 14px; border: 0; border-radius: 14px; cursor: pointer;
+      background: var(--accent); color: #241c00; font-family: 'Lilita One', sans-serif; font-size: 24px;
+      box-shadow: 0 5px 0 #b8900c; }
+    button:active { transform: translateY(3px); box-shadow: 0 2px 0 #b8900c; }
+    .how { margin-top: 18px; font-size: 14px; color: var(--muted); line-height: 1.6; }
+    kbd { background: #17142a; border: 1px solid #3a3358; border-radius: 6px; padding: 1px 6px; color: var(--ink); }
+    #join { overflow-y: auto; place-items: start center; }
+    .card { margin: auto; }
+    .chars { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+    .char { margin: 0; padding: 6px 2px 6px; width: auto; background: #17142a; border: 2px solid #3a3358;
+      border-radius: 14px; box-shadow: none; font-family: 'Nunito', sans-serif; font-size: 12px; font-weight: 800;
+      color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 2px; }
+    .char:active { transform: none; box-shadow: none; }
+    .char canvas { width: 54px; height: 54px; }
+    .char[aria-checked="true"] { border-color: var(--accent); color: var(--ink); background: #2d2650; }
+    .bots { display: flex; align-items: center; justify-content: space-between; gap: 10px;
+      margin-top: 14px; padding: 10px 12px; background: #17142a; border: 2px solid #3a3358; border-radius: 14px; min-height: 58px; }
+    .switch { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 15px; font-weight: 800;
+      color: var(--ink); cursor: pointer; text-align: left; }
+    .switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+    .track { width: 44px; height: 26px; border-radius: 999px; background: #3a3358; position: relative; flex: none;
+      transition: background .15s; }
+    .track::after { content: ''; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%;
+      background: #fff; transition: transform .15s; }
+    .switch input:checked + .track { background: var(--accent); }
+    .switch input:checked + .track::after { transform: translateX(18px); }
+    .switch input:focus-visible + .track { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .stepper { display: flex; align-items: center; gap: 6px; }
+    .stepper[hidden] { display: none; }
+    .stepper button { margin: 0; width: 34px; height: 34px; padding: 0; border-radius: 10px; font-size: 22px;
+      line-height: 1; box-shadow: 0 3px 0 #b8900c; }
+    .stepper button:disabled { opacity: .35; cursor: default; }
+    .stepper output { min-width: 26px; text-align: center; font-family: 'Lilita One', sans-serif; font-size: 24px; }
+    .other-game { display: block; margin: -6px 0 6px; padding: 10px; border-radius: 12px; background: #17142a;
+      border: 2px dashed #3a3358; color: var(--accent); text-decoration: none; font-weight: 800; font-size: 14px; }
+    .other-game:hover { border-color: var(--accent); }
+    .powers { margin-top: 10px; font-size: 13px; color: var(--muted); line-height: 1.7; }
+    #share { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); background: #0007;
+      padding: 8px 14px; border-radius: 999px; font-size: 13px; color: var(--muted); cursor: pointer;
+      display: none; white-space: nowrap; max-width: calc(100vw - 32px); overflow: hidden; text-overflow: ellipsis; }
+  </style>
+</head>
+<body>
+  <canvas id="c"></canvas>
+  <div id="share" title="Copiar enlace"></div>
+
+  <div id="join">
+    <div class="card">
+      <h1>EMPUJONES</h1>
+      <p class="sub">Tira a tus amigos de la arena.<br>El último en pie gana.</p>
+      <a class="other-game" href="/">← Volver a <b>moliva.games</b></a>
+      <label for="name">Tu nombre</label>
+      <input id="name" maxlength="14" placeholder="Ej: Nico" autocomplete="off">
+      <label>Elige personaje</label>
+      <div id="chars" class="chars" role="radiogroup" aria-label="Personaje"></div>
+      <div class="bots">
+        <label class="switch" for="botsOn">
+          <input type="checkbox" id="botsOn" role="switch">
+          <span class="track" aria-hidden="true"></span>
+          <span>🤖 Jugar con bots</span>
+        </label>
+        <div class="stepper" id="botsStepper" hidden>
+          <button type="button" id="botsMinus" aria-label="Menos bots">−</button>
+          <output id="botsCount" aria-live="polite">3</output>
+          <button type="button" id="botsPlus" aria-label="Más bots">+</button>
+        </div>
+      </div>
+      <label for="room">Sala (los que pongan la misma juegan juntos)</label>
+      <input id="room" maxlength="20" placeholder="principal" autocomplete="off">
+      <button id="play">¡JUGAR!</button>
+      <div class="how">
+        Moverse: <kbd>WASD</kbd> o flechas<br>
+        Embestir: <kbd>Espacio</kbd><br>
+        Móvil: arrastra para moverte, toca con otro dedo para embestir
+      </div>
+      <div class="powers">
+        Coge los poderes que aparecen:<br>
+        🍄 Gigante · ⚡ Turbo · 👻 Fantasma · 🧱 Muro<br>
+        😵 Mareo (a los demás) · 🧊 Hielo (a los demás) · 💣 Bomba
+      </div>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="characters.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>

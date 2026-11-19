@@ -2,108 +2,159 @@
 <html lang="es">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-  <title>Empujones</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>moliva.games</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Nunito:wght@600;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Bungee&family=Space+Grotesk:wght@500;700&family=Lilita+One&family=Racing+Sans+One&display=swap" rel="stylesheet">
+  <script>
+    // Enlaces antiguos de Empujones (/?sala=...) siguen funcionando
+    if (new URLSearchParams(location.search).has('sala')) location.replace('/empujones/' + location.search);
+  </script>
   <style>
-    :root { --bg: #14121f; --panel: #221e35; --ink: #f6f2ff; --muted: #a49cc4; --accent: #ffd23f; }
+    :root { --bg: #1f3bff; --bg2: #1229c9; --ink: #ffffff; --soft: #c9d2ff; --pop: #c6ff3d; --hot: #ff3d8b; }
     * { box-sizing: border-box; }
-    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
-      font-family: 'Nunito', system-ui, sans-serif; overflow: hidden; touch-action: none; }
-    canvas { display: block; width: 100vw; height: 100vh; }
-    #join { position: fixed; inset: 0; display: grid; place-items: center; padding: 16px;
-      background: radial-gradient(circle at 50% 30%, #2d2650, var(--bg) 70%); z-index: 10; }
-    .card { width: min(380px, 100%); background: var(--panel); border-radius: 22px; padding: 28px;
-      box-shadow: 0 20px 60px #0008; text-align: center; }
-    h1 { font-family: 'Lilita One', sans-serif; font-size: 52px; margin: 0; letter-spacing: 1px;
-      color: var(--accent); text-shadow: 4px 4px 0 #ff5d5d; transform: rotate(-3deg); }
-    .sub { color: var(--muted); margin: 10px 0 22px; }
-    label { display: block; text-align: left; font-size: 13px; color: var(--muted); margin: 12px 0 6px; }
-    input { width: 100%; padding: 13px 14px; border-radius: 12px; border: 2px solid #3a3358;
-      background: #17142a; color: var(--ink); font: inherit; font-size: 17px; outline: none; }
-    input:focus { border-color: var(--accent); }
-    button { margin-top: 20px; width: 100%; padding: 14px; border: 0; border-radius: 14px; cursor: pointer;
-      background: var(--accent); color: #241c00; font-family: 'Lilita One', sans-serif; font-size: 24px;
-      box-shadow: 0 5px 0 #b8900c; }
-    button:active { transform: translateY(3px); box-shadow: 0 2px 0 #b8900c; }
-    .how { margin-top: 18px; font-size: 14px; color: var(--muted); line-height: 1.6; }
-    kbd { background: #17142a; border: 1px solid #3a3358; border-radius: 6px; padding: 1px 6px; color: var(--ink); }
-    #join { overflow-y: auto; place-items: start center; }
-    .card { margin: auto; }
-    .chars { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
-    .char { margin: 0; padding: 6px 2px 6px; width: auto; background: #17142a; border: 2px solid #3a3358;
-      border-radius: 14px; box-shadow: none; font-family: 'Nunito', sans-serif; font-size: 12px; font-weight: 800;
-      color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 2px; }
-    .char:active { transform: none; box-shadow: none; }
-    .char canvas { width: 54px; height: 54px; }
-    .char[aria-checked="true"] { border-color: var(--accent); color: var(--ink); background: #2d2650; }
-    .bots { display: flex; align-items: center; justify-content: space-between; gap: 10px;
-      margin-top: 14px; padding: 10px 12px; background: #17142a; border: 2px solid #3a3358; border-radius: 14px; min-height: 58px; }
-    .switch { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 15px; font-weight: 800;
-      color: var(--ink); cursor: pointer; text-align: left; }
-    .switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
-    .track { width: 44px; height: 26px; border-radius: 999px; background: #3a3358; position: relative; flex: none;
-      transition: background .15s; }
-    .track::after { content: ''; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%;
-      background: #fff; transition: transform .15s; }
-    .switch input:checked + .track { background: var(--accent); }
-    .switch input:checked + .track::after { transform: translateX(18px); }
-    .switch input:focus-visible + .track { outline: 2px solid var(--accent); outline-offset: 2px; }
-    .stepper { display: flex; align-items: center; gap: 6px; }
-    .stepper[hidden] { display: none; }
-    .stepper button { margin: 0; width: 34px; height: 34px; padding: 0; border-radius: 10px; font-size: 22px;
-      line-height: 1; box-shadow: 0 3px 0 #b8900c; }
-    .stepper button:disabled { opacity: .35; cursor: default; }
-    .stepper output { min-width: 26px; text-align: center; font-family: 'Lilita One', sans-serif; font-size: 24px; }
-    .powers { margin-top: 10px; font-size: 13px; color: var(--muted); line-height: 1.7; }
-    #share { position: fixed; left: 50%; bottom: 14px; transform: translateX(-50%); background: #0007;
-      padding: 8px 14px; border-radius: 999px; font-size: 13px; color: var(--muted); cursor: pointer;
-      display: none; white-space: nowrap; max-width: calc(100vw - 32px); overflow: hidden; text-overflow: ellipsis; }
+    html, body { margin: 0; min-height: 100%; }
+    body { background: var(--bg); color: var(--ink); font-family: 'Space Grotesk', system-ui, sans-serif;
+      overflow-x: hidden; }
+    #bg { position: fixed; inset: 0; width: 100%; height: 100%; z-index: 0; }
+    main { position: relative; z-index: 1; max-width: 1040px; margin: 0 auto; padding: 48px 16px 40px; }
+    header { text-align: center; margin-bottom: 40px; }
+    .logo { font-family: 'Bungee', sans-serif; font-size: clamp(42px, 10vw, 104px); line-height: .95; margin: 0;
+      letter-spacing: -1px; text-shadow: 5px 5px 0 var(--hot), 10px 10px 0 #0b1a8f; }
+    .logo span { color: var(--pop); }
+    .tag { margin: 18px auto 0; max-width: 520px; font-size: 18px; color: #e6eaff; }
+    .chip { display: inline-block; margin-top: 16px; padding: 6px 14px; border-radius: 999px; background: #0b1a8f;
+      font-weight: 700; font-size: 14px; color: var(--pop); }
+    .games { display: grid; grid-template-columns: repeat(auto-fit, minmax(290px, 1fr)); gap: 28px; }
+    .game { position: relative; display: block; text-decoration: none; color: inherit; border-radius: 26px; overflow: hidden;
+      border: 4px solid #000; box-shadow: 8px 8px 0 #000; transition: transform .15s, box-shadow .15s; }
+    .game:nth-child(1) { transform: rotate(-1.5deg); }
+    .game:nth-child(2) { transform: rotate(1.2deg); }
+    .game:hover, .game:focus-visible { transform: rotate(0) translate(-3px, -3px); box-shadow: 12px 12px 0 #000; outline: none; }
+    .game canvas { display: block; width: 100%; height: 220px; }
+    .info { padding: 18px 20px 22px; }
+    .info h2 { margin: 0; font-size: 40px; line-height: 1; font-weight: 400; }
+    .info p { margin: 10px 0 14px; font-size: 16px; line-height: 1.45; }
+    .meta { display: flex; flex-wrap: wrap; gap: 8px; }
+    .meta span { padding: 4px 10px; border-radius: 999px; font-size: 13px; font-weight: 700; background: #0003; }
+    .play { position: absolute; top: 14px; right: 14px; padding: 8px 14px; border-radius: 12px; background: #000; color: #fff;
+      font-weight: 700; font-size: 14px; }
+    /* Cada juego con su estilo */
+    .g-empujones { background: #221e35; color: #f6f2ff; }
+    .g-empujones h2 { font-family: 'Lilita One', sans-serif; color: #ffd23f; text-shadow: 3px 3px 0 #ff5d5d; }
+    .g-empujones .meta span { background: #ffffff14; }
+    .g-karts { background: #c8102e; color: #fff; }
+    .g-karts h2 { font-family: 'Racing Sans One', sans-serif; font-style: italic; text-shadow: 3px 3px 0 #000; }
+    .g-karts .meta span { background: #0004; }
+    .soon { border: 4px dashed #ffffff66; border-radius: 26px; display: grid; place-items: center; min-height: 200px;
+      color: var(--soft); font-weight: 700; text-align: center; padding: 20px; transform: rotate(-.8deg); }
+    footer { margin-top: 44px; text-align: center; color: var(--soft); font-size: 14px; }
   </style>
 </head>
 <body>
-  <canvas id="c"></canvas>
-  <div id="share" title="Copiar enlace"></div>
+  <canvas id="bg"></canvas>
+  <main>
+    <header>
+      <h1 class="logo">moliva<span>.games</span></h1>
+      <p class="tag">Juegos online para echar unas partidas con los de clase. Elige uno, crea una sala y pasa el enlace.</p>
+      <div class="chip">● Sin descargas · funciona en el navegador</div>
+    </header>
 
-  <div id="join">
-    <div class="card">
-      <h1>EMPUJONES</h1>
-      <p class="sub">Tira a tus amigos de la arena.<br>El último en pie gana.</p>
-      <label for="name">Tu nombre</label>
-      <input id="name" maxlength="14" placeholder="Ej: Nico" autocomplete="off">
-      <label>Elige personaje</label>
-      <div id="chars" class="chars" role="radiogroup" aria-label="Personaje"></div>
-      <div class="bots">
-        <label class="switch" for="botsOn">
-          <input type="checkbox" id="botsOn" role="switch">
-          <span class="track" aria-hidden="true"></span>
-          <span>🤖 Jugar con bots</span>
-        </label>
-        <div class="stepper" id="botsStepper" hidden>
-          <button type="button" id="botsMinus" aria-label="Menos bots">−</button>
-          <output id="botsCount" aria-live="polite">3</output>
-          <button type="button" id="botsPlus" aria-label="Más bots">+</button>
+    <section class="games" aria-label="Juegos">
+      <a class="game g-empujones" href="/empujones/">
+        <canvas id="pv-empujones" aria-hidden="true"></canvas>
+        <span class="play">Jugar →</span>
+        <div class="info">
+          <h2>EMPUJONES</h2>
+          <p>Tira a tus amigos de una arena que se encoge. Embiste, coge poderes locos y sé el último en pie.</p>
+          <div class="meta"><span>👥 2–12 jugadores</span><span>🤖 Bots</span><span>⚡ 7 poderes</span><span>📱 Móvil</span></div>
         </div>
-      </div>
-      <label for="room">Sala (los que pongan la misma juegan juntos)</label>
-      <input id="room" maxlength="20" placeholder="principal" autocomplete="off">
-      <button id="play">¡JUGAR!</button>
-      <div class="how">
-        Moverse: <kbd>WASD</kbd> o flechas<br>
-        Embestir: <kbd>Espacio</kbd><br>
-        Móvil: arrastra para moverte, toca con otro dedo para embestir
-      </div>
-      <div class="powers">
-        Coge los poderes que aparecen:<br>
-        🍄 Gigante · ⚡ Turbo · 👻 Fantasma · 🧱 Muro<br>
-        😵 Mareo (a los demás) · 🧊 Hielo (a los demás) · 💣 Bomba
-      </div>
-    </div>
-  </div>
+      </a>
+      <a class="game g-karts" href="/karts/">
+        <canvas id="pv-karts" aria-hidden="true"></canvas>
+        <span class="play">Jugar →</span>
+        <div class="info">
+          <h2>HndJob Karts</h2>
+          <p>Carreras de karts en 3D con políticos y famosos de cartón. Derrapa, abre cajas y lánzale de todo al de delante.</p>
+          <div class="meta"><span>👥 1–10 pilotos</span><span>🤖 Bots</span><span>🏁 3 circuitos</span><span>🎯 6 poderes</span></div>
+        </div>
+      </a>
+    </section>
 
-  <script src="/socket.io/socket.io.js"></script>
-  <script src="characters.js"></script>
-  <script src="game.js"></script>
+    <footer>Más juegos próximamente · moliva.games</footer>
+  </main>
+
+  <script>
+    // Fondo: confeti que cae despacio
+    const bg = document.getElementById('bg'), b = bg.getContext('2d');
+    const colors = ['#c6ff3d', '#ff3d8b', '#ffffff', '#ffd23f', '#00e5ff'];
+    let bits = [];
+    function sizeBg() {
+      const d = devicePixelRatio || 1; bg.width = innerWidth * d; bg.height = innerHeight * d; b.setTransform(d, 0, 0, d, 0, 0);
+      bits = Array.from({ length: Math.round(innerWidth * innerHeight / 14000) }, () => ({
+        x: Math.random() * innerWidth, y: Math.random() * innerHeight, s: 4 + Math.random() * 8,
+        v: 10 + Math.random() * 25, r: Math.random() * 6, vr: (Math.random() - .5) * 2, c: colors[Math.random() * colors.length | 0],
+        shape: Math.random() < .5 }));
+    }
+    addEventListener('resize', sizeBg); sizeBg();
+
+    // Mini vistas animadas de cada juego
+    function setup(id) {
+      const cv = document.getElementById(id), c = cv.getContext('2d');
+      const fit = () => { const d = devicePixelRatio || 1; cv.width = cv.clientWidth * d; cv.height = cv.clientHeight * d; c.setTransform(d, 0, 0, d, 0, 0); };
+      addEventListener('resize', fit); fit();
+      return { cv, c };
+    }
+    const E = setup('pv-empujones'), K = setup('pv-karts');
+    const balls = ['#ff5d5d', '#4dabff', '#5ee07a', '#ffd23f', '#c77dff', '#ff8c42'].map((col, i) => ({
+      col, a: i / 6 * Math.PI * 2, r: 40 + Math.random() * 30, s: (Math.random() < .5 ? 1 : -1) * (0.6 + Math.random() * 0.8) }));
+    const kartCols = ['#f2b705', '#e3262f', '#2f6fdf', '#5ac035', '#b13bff'];
+
+    let last = performance.now(), reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+    function frame(now) {
+      const dt = Math.min(.05, (now - last) / 1000); last = now; const t = now / 1000;
+      // Fondo
+      b.clearRect(0, 0, innerWidth, innerHeight);
+      for (const p of bits) {
+        if (!reduce) { p.y += p.v * dt; p.r += p.vr * dt; if (p.y > innerHeight + 10) { p.y = -10; p.x = Math.random() * innerWidth; } }
+        b.save(); b.translate(p.x, p.y); b.rotate(p.r); b.globalAlpha = .55; b.fillStyle = p.c;
+        if (p.shape) b.fillRect(-p.s / 2, -p.s / 4, p.s, p.s / 2); else { b.beginPath(); b.arc(0, 0, p.s / 3, 0, 7); b.fill(); }
+        b.restore();
+      }
+      // Empujones
+      { const { cv, c } = E, w = cv.clientWidth, h = cv.clientHeight;
+        c.fillStyle = '#14121f'; c.fillRect(0, 0, w, h);
+        const R = Math.min(w, h) * 0.42 * (0.85 + 0.15 * Math.sin(t * 0.7));
+        c.beginPath(); c.arc(w / 2, h / 2, R, 0, 7); c.fillStyle = '#2f2852'; c.fill();
+        c.lineWidth = 5; c.strokeStyle = '#ffd23f'; c.stroke();
+        balls.forEach((o, i) => {
+          if (!reduce) o.a += o.s * dt;
+          const rr = Math.min(o.r, R - 18) + Math.sin(t * 2 + i) * 10;
+          const x = w / 2 + Math.cos(o.a) * rr, y = h / 2 + Math.sin(o.a) * rr * 0.8;
+          c.beginPath(); c.arc(x, y, 14, 0, 7); c.fillStyle = o.col; c.fill(); c.lineWidth = 3; c.strokeStyle = '#0006'; c.stroke();
+          c.fillStyle = '#1a1a1a'; c.beginPath(); c.arc(x - 4.5, y - 3, 2.2, 0, 7); c.arc(x + 4.5, y - 3, 2.2, 0, 7); c.fill();
+        });
+      }
+      // Karts: circuito visto desde arriba con karts dando vueltas
+      { const { cv, c } = K, w = cv.clientWidth, h = cv.clientHeight;
+        c.fillStyle = '#1b1b1f'; c.fillRect(0, 0, w, h);
+        for (let x = 0; x < w; x += 24) for (let y = 0; y < 24; y += 12) { c.fillStyle = ((x / 24 + y / 12) % 2) ? '#fff' : '#000'; c.fillRect(x, h - 24 + y, 12, 12); }
+        const cx = w / 2, cy = h / 2 - 8, rx = w * 0.36, ry = h * 0.28;
+        const path = a => [cx + Math.cos(a) * rx * (1 + 0.18 * Math.sin(a * 2)), cy + Math.sin(a) * ry];
+        c.lineJoin = 'round'; c.beginPath();
+        for (let i = 0; i <= 80; i++) { const [x, y] = path(i / 80 * Math.PI * 2); i ? c.lineTo(x, y) : c.moveTo(x, y); }
+        c.closePath(); c.lineWidth = 34; c.strokeStyle = '#ff2d2d'; c.stroke(); c.lineWidth = 26; c.strokeStyle = '#3a3a42'; c.stroke();
+        c.setLineDash([10, 10]); c.lineWidth = 2; c.strokeStyle = '#ffffff88'; c.stroke(); c.setLineDash([]);
+        kartCols.forEach((col, i) => {
+          const a = (reduce ? 0 : t * (0.9 + i * 0.07)) + i * 0.35, [x, y] = path(a), [x2, y2] = path(a + 0.01);
+          c.save(); c.translate(x, y); c.rotate(Math.atan2(y2 - y, x2 - x));
+          c.fillStyle = col; c.fillRect(-9, -5, 18, 10); c.fillStyle = '#000'; c.fillRect(-7, -7, 4, 3); c.fillRect(-7, 4, 4, 3); c.fillRect(4, -7, 4, 3); c.fillRect(4, 4, 4, 3);
+          c.restore();
+        });
+      }
+      requestAnimationFrame(frame);
+    }
+    requestAnimationFrame(frame);
+  </script>
 </body>
 </html>

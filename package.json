@@ -3,12 +3,15 @@
   "version": "1.0.0",
   "description": "Juego multijugador online: empuja a tus amigos fuera de la arena",
   "main": "server.js",
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "start": "node server.js"
   },
   "dependencies": {
     "express": "^4.19.2",
-    "socket.io": "^4.7.5"
+    "socket.io": "^4.7.5",
+    "three": "^0.169.0"
   }
 }

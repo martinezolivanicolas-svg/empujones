@@ -1,0 +1,216 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <title>HndJob Karts</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Racing+Sans+One&family=Chakra+Petch:wght@500;700&display=swap" rel="stylesheet">
+  <style>
+    :root { --bg: #0c0c0f; --panel: #18181d; --panel2: #101014; --line: #33333c; --ink: #ffffff;
+      --muted: #b9b9c6; --accent: #ff2d3d; --accent-dark: #8a0012; --hot: #ffd23f; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--ink);
+      font-family: 'Chakra Petch', system-ui, sans-serif; overflow: hidden; touch-action: none; user-select: none; }
+    #game { position: fixed; inset: 0; }
+    #game canvas { display: block; }
+    .overlay { position: fixed; inset: 0; display: grid; place-items: start center; padding: 16px; overflow-y: auto;
+      background:
+        radial-gradient(circle at 50% 0%, #c8102ecc, transparent 55%),
+        repeating-conic-gradient(#141418 0 25%, #0c0c0f 0 50%) 0 0 / 56px 56px;
+      z-index: 10; }
+    .overlay::before { content: ''; position: fixed; left: 0; right: 0; top: 0; height: 18px; z-index: -1;
+      background: repeating-conic-gradient(#fff 0 25%, #000 0 50%) 0 0 / 18px 18px; }
+    .overlay[hidden] { display: none; }
+    .card { margin: auto; width: min(460px, 100%); background: var(--panel); border-radius: 22px; padding: 24px;
+      box-shadow: 0 20px 60px #000c; text-align: center; border: 2px solid #2a2a31; border-top: 6px solid var(--accent); }
+    .card.wide { width: min(620px, 100%); }
+    h1 { font-family: 'Racing Sans One', sans-serif; font-size: 58px; margin: 0; line-height: .9; color: #fff; font-weight: 400;
+      font-style: italic; text-transform: uppercase; text-shadow: 4px 4px 0 var(--accent), 8px 8px 0 #000; transform: skewX(-8deg); }
+    h1 span { color: var(--hot); }
+    h2 { font-family: 'Racing Sans One', sans-serif; font-size: 30px; margin: 0 0 6px; font-weight: 400; }
+    .sub { color: var(--muted); margin: 12px 0 16px; }
+    label, .label { display: block; text-align: left; font-size: 13px; color: var(--muted); margin: 14px 0 6px; }
+    input[type=text] { width: 100%; padding: 12px 14px; border-radius: 12px; border: 2px solid var(--line);
+      background: var(--panel2); color: var(--ink); font: inherit; font-size: 17px; outline: none; }
+    input[type=text]:focus { border-color: var(--accent); }
+    .btn { margin-top: 18px; width: 100%; padding: 14px; border: 0; border-radius: 14px; cursor: pointer;
+      background: var(--accent); color: #fff; font-family: 'Racing Sans One', sans-serif; font-size: 26px; font-style: italic;
+      text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 5px 0 var(--accent-dark); }
+    .btn:active { transform: translateY(3px); box-shadow: 0 2px 0 var(--accent-dark); }
+    .btn:disabled { opacity: .5; cursor: default; }
+    .chars { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .char { padding: 6px; background: var(--panel2); border: 2px solid var(--line); border-radius: 14px; cursor: pointer;
+      color: var(--muted); font: 700 12px 'Chakra Petch', sans-serif; display: flex; flex-direction: column; align-items: center; gap: 4px; }
+    .char img { width: 64px; height: 64px; object-fit: cover; border-radius: 8px; border: 3px solid #fff;
+      transform: rotate(-4deg); box-shadow: 0 3px 0 #0006; }
+    .char:nth-child(even) img { transform: rotate(3deg); }
+    .char[aria-checked="true"] { border-color: var(--accent); color: var(--ink); background: #3a0a12; }
+    .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px;
+      padding: 10px 12px; background: var(--panel2); border: 2px solid var(--line); border-radius: 14px; min-height: 58px; }
+    .switch { display: flex; align-items: center; gap: 10px; margin: 0; font-size: 15px; font-weight: 700; color: var(--ink); cursor: pointer; }
+    .switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+    .track { width: 44px; height: 26px; border-radius: 999px; background: var(--line); position: relative; flex: none; transition: background .15s; }
+    .track::after { content: ''; position: absolute; top: 3px; left: 3px; width: 20px; height: 20px; border-radius: 50%; background: #fff; transition: transform .15s; }
+    .switch input:checked + .track { background: var(--accent); }
+    .switch input:checked + .track::after { transform: translateX(18px); }
+    .switch input:focus-visible + .track { outline: 2px solid var(--accent); outline-offset: 2px; }
+    .stepper { display: flex; align-items: center; gap: 6px; }
+    .stepper[hidden] { display: none; }
+    .stepper button { width: 34px; height: 34px; padding: 0; border: 0; border-radius: 10px; font-size: 22px; line-height: 1;
+      background: var(--accent); color: #fff; box-shadow: 0 3px 0 var(--accent-dark); cursor: pointer; font-family: 'Racing Sans One', sans-serif; }
+    .stepper button:disabled { opacity: .35; cursor: default; }
+    .stepper output { min-width: 26px; text-align: center; font-family: 'Racing Sans One', sans-serif; font-size: 24px; }
+    .help { margin-top: 16px; font-size: 13px; color: var(--muted); line-height: 1.7; }
+    kbd { background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; color: var(--ink); }
+    a { color: var(--hot); }
+    details { margin-top: 12px; text-align: left; font-size: 12px; color: var(--muted); }
+    details ul { padding-left: 18px; margin: 6px 0; }
+    /* Sala de espera */
+    .players { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; text-align: left; }
+    .pl { display: flex; align-items: center; gap: 8px; padding: 6px 8px; background: var(--panel2); border-radius: 12px; font-weight: 700; font-size: 14px; min-width: 0; }
+    .pl img { width: 36px; height: 36px; object-fit: cover; border-radius: 6px; border: 2px solid #fff; flex: none; }
+    .pl span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pl small { margin-left: auto; color: var(--hot); flex: none; }
+    .tracks { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+    .trk { padding: 10px 6px; border-radius: 14px; border: 2px solid var(--line); background: var(--panel2); color: var(--ink);
+      font: 700 13px 'Chakra Petch', sans-serif; cursor: pointer; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+    .trk canvas { width: 100%; height: 70px; }
+    .trk[aria-checked="true"] { border-color: var(--accent); background: #3a0a12; }
+    .trk:disabled { cursor: default; }
+    .share { margin-top: 10px; font-size: 13px; color: var(--muted); cursor: pointer; }
+    /* Resultados */
+    table { width: 100%; border-collapse: collapse; margin-top: 10px; font-weight: 700; }
+    td, th { padding: 6px 4px; text-align: left; font-size: 15px; }
+    th { color: var(--muted); font-size: 12px; }
+    td img { width: 30px; height: 30px; object-fit: cover; border-radius: 6px; border: 2px solid #fff; vertical-align: middle; margin-right: 6px; }
+    tr.me td { color: var(--hot); }
+    .num { text-align: right; }
+    /* HUD */
+    #hud { position: fixed; inset: 0; pointer-events: none; z-index: 5; }
+    #hud[hidden] { display: none; }
+    .pos { position: absolute; left: 16px; top: 12px; font-family: 'Racing Sans One', sans-serif; font-size: 64px; line-height: 1;
+      color: #fff; -webkit-text-stroke: 3px #000; text-shadow: 4px 4px 0 #000; }
+    .pos sup { font-size: 28px; }
+    .pos small { display: block; font-size: 22px; -webkit-text-stroke: 1.5px #000; text-shadow: 2px 2px 0 #000; }
+    .itembox { position: absolute; right: 16px; top: 12px; width: 84px; height: 84px; border-radius: 18px;
+      background: #0009; border: 4px solid #fff; display: grid; place-items: center; font-size: 46px; }
+    .itembox small { position: absolute; bottom: -24px; left: 50%; transform: translateX(-50%); white-space: nowrap;
+      font: 700 13px 'Chakra Petch', sans-serif; color: #fff; text-shadow: 1px 1px 0 #000; }
+    .itembox.rolling { border-color: var(--accent); }
+    #feed { position: absolute; left: 16px; top: 120px; font-weight: 700; font-size: 15px; text-shadow: 1px 1px 2px #000; }
+    #feed div { margin-bottom: 4px; transition: opacity .5s; }
+    #center { position: absolute; left: 0; right: 0; top: 22%; text-align: center; font-family: 'Racing Sans One', sans-serif;
+      font-size: clamp(40px, 10vw, 110px); color: var(--accent); -webkit-text-stroke: 3px #000; text-shadow: 5px 5px 0 #000; }
+    #center small { display: block; font-size: 22px; color: #fff; -webkit-text-stroke: 0; text-shadow: 2px 2px 0 #000; }
+    #minimap { position: absolute; right: 12px; bottom: 12px; width: 170px; height: 170px; }
+    .timer { position: absolute; left: 50%; top: 12px; transform: translateX(-50%); font: 700 20px 'Chakra Petch', sans-serif;
+      text-shadow: 2px 2px 0 #000; }
+    /* Controles táctiles */
+    #touch { position: fixed; inset: auto 0 0 0; height: 150px; z-index: 6; display: none; }
+    body.touch #touch { display: block; }
+    .tbtn { position: absolute; bottom: 18px; width: 74px; height: 74px; border-radius: 50%; background: #fff3; border: 3px solid #fff8;
+      color: #fff; font: 700 26px 'Chakra Petch', sans-serif; display: grid; place-items: center; pointer-events: auto; }
+    .tbtn.on { background: #fff6; }
+  </style>
+  <script type="importmap">{ "imports": { "three": "/vendor/three/three.module.js" } }</script>
+</head>
+<body>
+  <div id="game"></div>
+
+  <div id="hud" hidden>
+    <div class="pos" id="pos">–</div>
+    <div class="timer" id="timer"></div>
+    <div class="itembox" id="itembox"><span id="itemIcon"></span><small id="itemName"></small></div>
+    <div id="feed"></div>
+    <div id="center"></div>
+    <canvas id="minimap" width="340" height="340"></canvas>
+  </div>
+
+  <div id="touch">
+    <div class="tbtn" id="tLeft" style="left:16px">◀</div>
+    <div class="tbtn" id="tRight" style="left:104px">▶</div>
+    <div class="tbtn" id="tBrake" style="right:192px">⏪</div>
+    <div class="tbtn" id="tDrift" style="right:104px">💨</div>
+    <div class="tbtn" id="tItem" style="right:16px">🎁</div>
+  </div>
+
+  <!-- Menú principal -->
+  <div class="overlay" id="menu">
+    <div class="card">
+      <h1>HndJob <span>Karts</span></h1>
+      <p class="sub">Carreras online con tus amigos. Derrapa, coge cajas y lánzale de todo al de delante.</p>
+      <label for="name">Tu nombre</label>
+      <input type="text" id="name" maxlength="14" placeholder="Ej: Nico" autocomplete="off">
+      <div class="label">Elige piloto</div>
+      <div class="chars" id="chars" role="radiogroup" aria-label="Piloto"></div>
+      <div class="row">
+        <label class="switch" for="botsOn">
+          <input type="checkbox" id="botsOn" role="switch">
+          <span class="track" aria-hidden="true"></span>
+          <span>🤖 Correr con bots</span>
+        </label>
+        <div class="stepper" id="botsStepper" hidden>
+          <button type="button" id="botsMinus" aria-label="Menos bots">−</button>
+          <output id="botsCount">4</output>
+          <button type="button" id="botsPlus" aria-label="Más bots">+</button>
+        </div>
+      </div>
+      <label for="room">Sala (los que pongan la misma corren juntos)</label>
+      <input type="text" id="room" maxlength="20" placeholder="principal" autocomplete="off">
+      <button class="btn" id="enter">¡A BOXES!</button>
+      <div class="help">
+        Acelerar <kbd>W</kbd>/<kbd>↑</kbd> · Frenar <kbd>S</kbd>/<kbd>↓</kbd> · Girar <kbd>A</kbd><kbd>D</kbd>/<kbd>←</kbd><kbd>→</kbd><br>
+        Derrapar: mantén <kbd>Espacio</kbd> mientras giras y suelta para el turbo<br>
+        Usar poder: <kbd>E</kbd> o <kbd>Enter</kbd><br>
+        💰 Sobre · 🛢️ Aceite · 💣 Bomba · 🎯 Misil · 🛡️ Aforado · 📉 Recorte<br>
+        <a href="/">← Volver al menú de moliva.games</a>
+      </div>
+      <details>
+        <summary>Créditos de las fotos</summary>
+        Todas de Wikimedia Commons, recortadas:
+        <ul>
+          <li>Pedro Sánchez — Pool Moncloa / Carlos Spottorno (atribución)</li>
+          <li>Santiago Abascal — Vox España (CC0)</li>
+          <li>José Luis Ábalos — La Moncloa, Gobierno de España (atribución)</li>
+          <li>Koldo García — CCTV, Congreso (dominio público)</li>
+          <li>Donald Trump — Daniel Torok (dominio público)</li>
+          <li>Benjamin Netanyahu — Avi Ohayon (CC BY-SA 3.0)</li>
+          <li>Sean Combs — Nicolas Richoffer (CC BY-SA 4.0)</li>
+          <li>Jeffrey Epstein — Palm Beach County Sheriff's Department (dominio público)</li>
+          <li>Charlie Kirk — Gage Skidmore (CC BY-SA 2.0)</li>
+        </ul>
+      </details>
+    </div>
+  </div>
+
+  <!-- Sala de espera -->
+  <div class="overlay" id="lobby" hidden>
+    <div class="card wide">
+      <h2>🏁 Boxes</h2>
+      <div class="players" id="lobbyPlayers"></div>
+      <div class="label">Circuito</div>
+      <div class="tracks" id="tracks" role="radiogroup" aria-label="Circuito"></div>
+      <button class="btn" id="startBtn">¡EMPEZAR CARRERA!</button>
+      <div class="sub" id="waitHost" hidden>Esperando a que el anfitrión 👑 empiece…</div>
+      <div class="share" id="share"></div>
+    </div>
+  </div>
+
+  <!-- Resultados -->
+  <div class="overlay" id="results" hidden>
+    <div class="card wide">
+      <h2 id="resTitle">Resultados</h2>
+      <table>
+        <thead><tr><th>#</th><th>Piloto</th><th class="num">Tiempo</th><th class="num">Puntos</th><th class="num">Total</th></tr></thead>
+        <tbody id="resBody"></tbody>
+      </table>
+      <p class="sub" id="resNext"></p>
+    </div>
+  </div>
+
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="shared.js"></script>
+  <script type="module" src="karts.js"></script>
+</body>
+</html>
