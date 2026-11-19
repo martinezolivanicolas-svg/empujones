@@ -1,4 +1,4 @@
-// HNDJOB KARTS — cliente 3D (Three.js)
+// PEPSTEIN KARTS — cliente 3D (Three.js)
 // Tu kart se conduce aquí mismo (sin retraso) y se envía al servidor;
 // los demás karts, cajas y poderes llegan del servidor.
 import * as THREE from 'three';
@@ -202,7 +202,7 @@ function buildWorld(track) {
     map: canvasTex(512, 64, (c, w, h) => {
       c.fillStyle = '#e3262f'; c.fillRect(0, 0, w, h);
       c.fillStyle = '#fff'; c.font = 'bold 44px sans-serif'; c.textAlign = 'center'; c.textBaseline = 'middle';
-      c.fillText('HNDJOB KARTS · ' + track.name.toUpperCase(), w / 2, h / 2 + 2);
+      c.fillText('PEPSTEIN KARTS · ' + track.name.toUpperCase(), w / 2, h / 2 + 2);
     }) }));
   banner.position.set(p0.x, 9, p0.z);
   banner.rotation.y = -Math.atan2(p0.tz, p0.tx); world.add(banner);
@@ -430,7 +430,7 @@ socket.on('state', s => {
     if (p.id === myId || !p.inRace || p.x == null) continue;
     seen.add(p.id);
     let o = others.get(p.id);
-    if (!o) { o = makeKart(p.char, p.name, true); others.set(p.id, o); }
+    if (!o) { o = makeKart(p.char, p.name, false); others.set(p.id, o); } // sin nombre encima: no tapa la vista
     o.data = p;
     if (!o.init) { o.x = p.x; o.z = p.z; o.h = p.h; o.init = true; }
   }

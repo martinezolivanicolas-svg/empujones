@@ -1,4 +1,4 @@
-// HNDJOB KARTS — código compartido por el servidor (bots) y el navegador (tu kart):
+// PEPSTEIN KARTS — código compartido por el servidor (bots) y el navegador (tu kart):
 // circuitos, física de conducción, vueltas y poderes.
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) module.exports = factory();
